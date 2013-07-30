@@ -49,9 +49,6 @@ object DynamoAttribute {
 
   def emptySeq: DynamoAttributes = Seq.empty[DynamoAttribute[_]]
 
-  // Implicit Conversion for using the Java JsonNode here in Scala
-  import scala.collection.JavaConversions.{ asScalaIterator }
-
   /**
    * Takes in a JsonNode and the Key to find the attributes info
    * and constructs the DynamoAttributesMap
@@ -60,20 +57,29 @@ object DynamoAttribute {
    * http://docs.scala-lang.org/overviews/collections/performance-characteristics.html
    */
 
-  val SS = KeyAndValue("SS", ARR)
+  def toStringSet(arr: JArray): Option[Set[String]] = {
+    arr.value.foldLeft(Some(Set[String]()): Option[Set[String]]) { (os, elem) =>
+      for {
+        set <- os
+        s <- elem >>: STRING
+      } yield set + s
+    }
+  }
+
+  val SS = KeyAndValue("SS", ARR flatMap toStringSet)
   val S = KeyAndValue("S", STRING)
+
+  import Finder.stringToKeyValueFinder
 
   def parseAttributes(obj: JObject, attrKey: String): DynamoAttributesMap = {
     (obj >>: attrKey ~> OBJ) map { item =>
       // Fold over the Key-Value pairs of the JsonNode to build
       // up the DynamoAttributesMap
       item.keyValues.foldLeft(emptyMap) { case (attributesSoFar: DynamoAttributesMap, (key: String, value: JElement)) =>
-        (value >>: OBJ).map {
-          case S((k, s))    => attributesSoFar + (key -> DynamoAttribute(k, s))
-          case SS((k, arr)) => attributesSoFar + (key -> DynamoAttribute(k, arr))
+        (value >>: OBJ) match {
+          case Some(S((k, s)))    => attributesSoFar + (key -> DynamoAttribute(k, s))
+          case Some(SS((k, arr))) => attributesSoFar + (key -> DynamoAttribute(k, arr))
           case _ => attributesSoFar
-        } getOrElse {
-          attributesSoFar
         }
       }
     } getOrElse {

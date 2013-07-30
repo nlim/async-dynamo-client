@@ -149,5 +149,4 @@ class AsyncDynamoClient(creds: AWSCredentials, tableName: String, timeOutMillis:
     s.setRegionName(regionId)
     s
   }
-  */
 }

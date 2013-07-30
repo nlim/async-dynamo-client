@@ -11,8 +11,17 @@ object Finder {
 
   implicit def stringToKeyValueFinder(s: String): ValueAtKey = ValueAtKey(s)
 
+  def map[A, B, C](finder: Finder[A, B], f: B => C): Finder[A, C] = {
+    new Finder[A, C] {
+      def find(e: A): Option[C] = finder.find(e).map(f)
+    }
+  }
 
-
+  def flatMap[A, B, C](finder: Finder[A, B], f: B => Option[C]): Finder[A, C] = {
+    new Finder[A, C] {
+      def find(e: A): Option[C] = finder.find(e).flatMap(f)
+    }
+  }
 }
 
 sealed trait Finder[-A, +B] {
@@ -22,6 +31,8 @@ sealed trait Finder[-A, +B] {
   def apply(e: A) = find(e)
   def unapply(e: A): Option[B] = find(e)
   def ~>[C](f: Finder[B, C]) = Finder.compose(this, f)
+  def map[C](f: B => C): Finder[A, C] = Finder.map(this, f)
+  def flatMap[C](f: B => Option[C]): Finder[A, C] = Finder.flatMap(this, f)
 }
 
 
@@ -58,13 +69,11 @@ case class ValueAtKey(k: String) extends Finder[JObject, JElement] {
 }
 
 // Checks to see if a Key Value pair exists for given JObject
-case class KeyAndValue[E <: JElement](k: String, f: Finder[JElement, E]) extends Finder[JObject, (String, E)] {
+case class KeyAndValue[E](k: String, f: Finder[JElement, E]) extends Finder[JObject, (String, E)] {
   def find(o: JObject) = {
     for {
       v <- o.get(k)
       e <- v >>: f
     } yield (k, e)
   }
-
-
 }
